@@ -10,12 +10,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:init": "node scripts/init-db.mjs"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",
     "cn": "0.5.2",
     "lucide-react": "1.74.0",
+    "mysql2": "3.24.6",
     "next": "16.4.6",
     "radix-ui": "1.8.1",
     "react": "19.3.0",

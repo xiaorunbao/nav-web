@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Eye, Flame, Star } from "lucide-react";
 import { SiteIcon } from "@/components/site-icon";
+import { goHref } from "@/lib/site";
 import type { NavSite } from "@/data/nav";
 import { useNavStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -125,7 +126,7 @@ export function SiteCard({
           <Star className={cn("size-3", liked && "fill-current")} />
         </button>
         <a
-          href={site.url}
+          href={goHref(site.url)}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(event) => {

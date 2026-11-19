@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ChevronDown,
   Crown,
   LogIn,
+  LogOut,
   Menu,
   Moon,
   PanelLeftOpen,
@@ -13,6 +15,14 @@ import {
   Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -32,27 +42,69 @@ import {
 import { SearchDialog } from "@/components/search-dialog";
 import { NavIcon } from "@/components/nav-icons";
 import { sidebarItems } from "@/data/nav";
+import { logoutAction } from "@/app/login/actions";
+import type { SessionUser } from "@/lib/auth-shared";
+import { OAUTH_PROVIDER_LABELS } from "@/lib/oauth-shared";
 import { useNavStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+const PROVIDER_LABEL: Record<SessionUser["provider"], string> = {
+  password: "账号密码登录",
+  qq: `${OAUTH_PROVIDER_LABELS.qq} 登录`,
+  wechat: `${OAUTH_PROVIDER_LABELS.wechat}登录`,
+  baidu: `${OAUTH_PROVIDER_LABELS.baidu}登录`,
+  weibo: `${OAUTH_PROVIDER_LABELS.weibo}登录`,
+  google: `${OAUTH_PROVIDER_LABELS.google} 登录`,
+  github: `${OAUTH_PROVIDER_LABELS.github} 登录`,
+};
+
 const NAV = [
-  { label: "快速筛选", href: "/#blocks" },
+  { label: "快速筛选", href: "/iotags" },
   { label: "次级导航", href: "/secondary" },
-  { label: "排行榜", href: "/#hot" },
+  { label: "排行榜", href: "/rankings" },
   { label: "关于", href: "/about" },
   { label: "投稿收录", href: "/submit" },
 ];
 
-const NOTICE: Record<"login" | "vip", { title: string; desc: string }> = {
-  login: {
-    title: "登录",
-    desc: "这是界面原型，账号体系尚未接入，暂时无法登录。",
-  },
+const NOTICE: Record<"vip", { title: string; desc: string }> = {
   vip: {
     title: "开通会员",
     desc: "这是界面原型，会员权益与支付流程尚未接入，敬请期待。",
   },
 };
+
+function UserAvatar({
+  user,
+  className,
+}: {
+  user: SessionUser;
+  className?: string;
+}) {
+  const [broken, setBroken] = useState(false);
+
+  if (user.avatar && !broken) {
+    return (
+      <img
+        src={user.avatar}
+        alt={user.name}
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        className={cn("rounded-full object-cover", className)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "grid place-items-center rounded-full gradient-brand font-semibold text-white",
+        className
+      )}
+    >
+      {user.name.slice(0, 1)}
+    </span>
+  );
+}
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -62,8 +114,34 @@ export function SiteHeader() {
   const toggleAside = useNavStore((state) => state.toggleAside);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [notice, setNotice] = useState<"login" | "vip" | null>(null);
+  const [notice, setNotice] = useState<"vip" | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [loggingOut, startLogout] = useTransition();
   const isListing = pathname === "/" || pathname === "/secondary";
+  const loginHref = "/login";
+
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { user: SessionUser | null } | null) => {
+        if (active) setUser(data?.user ?? null);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleLogout = () => {
+    startLogout(async () => {
+      await logoutAction();
+    });
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -167,15 +245,63 @@ export function SiteHeader() {
             )}
           </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setNotice("login")}
-            className="hidden text-muted-foreground md:inline-flex"
-          >
-            <LogIn className="size-4" />
-            登录
-          </Button>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="hidden h-9 items-center gap-2 rounded-full border border-border/80 bg-card/80 py-1 pl-1 pr-2.5 text-xs text-foreground shadow-[0_2px_10px_-6px_rgba(55,30,95,0.25)] transition hover:border-brand/30 md:inline-flex"
+                  aria-label="账号菜单"
+                >
+                  <UserAvatar user={user} className="size-7 shrink-0 text-[11px]" />
+                  <span className="max-w-[84px] truncate font-medium">
+                    {user.name}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="space-y-0.5">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {user.name}
+                  </span>
+                  <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                    {PROVIDER_LABEL[user.provider]} ·{" "}
+                    {user.account}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="cursor-pointer">
+                    <LogIn className="size-4" />
+                    返回首页
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={loggingOut}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    handleLogout();
+                  }}
+                >
+                  <LogOut className="size-4" />
+                  {loggingOut ? "退出中…" : "退出登录"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="hidden text-muted-foreground md:inline-flex"
+            >
+              <Link href={loginHref}>
+                <LogIn className="size-4" />
+                登录
+              </Link>
+            </Button>
+          )}
 
           <Button
             size="sm"
@@ -237,7 +363,43 @@ export function SiteHeader() {
                   ))}
                 </div>
               </div>
-              <div className="border-t p-3">
+              <div className="space-y-2 border-t p-3">
+                {user ? (
+                  <>
+                    <div className="flex items-center gap-2.5 rounded-xl bg-muted/60 px-3 py-2.5">
+                      <UserAvatar user={user} className="size-8 shrink-0 text-xs" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {user.name}
+                        </span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          {PROVIDER_LABEL[user.provider]}
+                        </span>
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      disabled={loggingOut}
+                      onClick={handleLogout}
+                      className="w-full rounded-full"
+                    >
+                      <LogOut className="size-4" />
+                      {loggingOut ? "退出中…" : "退出登录"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="w-full rounded-full"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Link href={loginHref}>
+                      <LogIn className="size-4" />
+                      登录
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   onClick={() => {
                     setMobileOpen(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, CornerDownLeft, Search, Sparkles } from "lucide-react";
 import {
@@ -15,7 +15,6 @@ import { SiteIcon } from "@/components/site-icon";
 import { searchSites, hostname } from "@/lib/search";
 import { useNavStore } from "@/lib/store";
 import { hotSiteIds, siteById } from "@/data/nav";
-import { cn } from "@/lib/utils";
 
 const QUICK = ["在线配色", "AI 工具", "素材", "网盘", "设计团队"];
 
@@ -30,9 +29,10 @@ export function SearchDialog({
   const router = useRouter();
   const addRecent = useNavStore((state) => state.addRecent);
 
-  useEffect(() => {
-    if (!open) setValue("");
-  }, [open]);
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setValue("");
+    onOpenChange(next);
+  };
 
   const results = useMemo(() => {
     if (!value.trim()) {
@@ -48,7 +48,7 @@ export function SearchDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
         className="gap-0 overflow-hidden p-0 sm:max-w-[620px]"

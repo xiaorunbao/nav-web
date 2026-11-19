@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Flame, Search, Sparkles } from "lucide-react";
 import { sites, siteById } from "@/data/nav";
 import { useNavStore } from "@/lib/store";
@@ -21,6 +22,7 @@ export function HeroSearch() {
   const setQuery = useNavStore((state) => state.setQuery);
   const engine = useNavStore((state) => state.engine);
   const setEngine = useNavStore((state) => state.setEngine);
+  const router = useRouter();
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -28,6 +30,10 @@ export function HeroSearch() {
     const current = ENGINES.find((item) => item.label === engine) ?? ENGINES[0];
     if (current.url && value) {
       window.open(current.url + encodeURIComponent(value), "_blank", "noopener");
+      return;
+    }
+    if (value) {
+      router.push(`/search?s=${encodeURIComponent(value)}`);
       return;
     }
     document.getElementById("blocks")?.scrollIntoView({ behavior: "smooth" });
@@ -99,7 +105,7 @@ export function HeroSearch() {
               key={word}
               onClick={() => {
                 setQuery(word);
-                document.getElementById("blocks")?.scrollIntoView({ behavior: "smooth" });
+                router.push(`/search?s=${encodeURIComponent(word)}`);
               }}
               className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 transition hover:bg-white/20 hover:text-white"
             >

@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SiteIcon } from "@/components/site-icon";
 import { searchSites } from "@/lib/search";
-import { useNavStore } from "@/lib/store";
 import type { NavSite } from "@/data/nav";
 
 const PROMPTS = ["找一个在线配色工具", "AI 设计工具推荐", "免费素材站", "团队设计博客"];

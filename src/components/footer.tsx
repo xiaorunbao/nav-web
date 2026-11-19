@@ -56,11 +56,11 @@ export function Footer() {
               <Link href="/secondary" className="hover:text-brand">
                 次级导航
               </Link>
-              <Link href="/#hot" className="hover:text-brand">
+              <Link href="/rankings" className="hover:text-brand">
                 热门榜单
               </Link>
-              <Link href="/#block-recommend" className="hover:text-brand">
-                常用推荐
+              <Link href="/iotags" className="hover:text-brand">
+                标签筛选
               </Link>
               <Link href="/#block-tools" className="hover:text-brand">
                 常用工具

@@ -12,12 +12,14 @@ import {
   Hash,
   Heart,
   MessageSquare,
+  Smartphone,
   Sparkles,
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteIcon } from "@/components/site-icon";
 import { hostname } from "@/lib/search";
+import { formatRelative, getSiteMeta, goHref } from "@/lib/site";
 import { blocks, hotSiteIds, siteById, sites } from "@/data/nav";
 import { useNavStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,7 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
   const setSelectedSite = useNavStore((state) => state.setSelectedSite);
 
   const liked = favorites.includes(site.id);
+  const meta = getSiteMeta(site);
   const block = blocks.find((item) => item.siteIds.includes(site.id));
   const blockTitle = block?.title ?? "全部站点";
   const domain = hostname(site.url);
@@ -101,7 +104,7 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
                   {site.name}
                 </h1>
                 <a
-                  href={site.url}
+                  href={goHref(site.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-brand"
@@ -112,20 +115,20 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1">
+                    <Clock className="size-3.5" />
+                    {formatRelative(meta.updatedAt)}
+                  </span>
+                  <span className="flex items-center gap-1">
                     <Eye className="size-3.5" />
                     {site.views === "0" ? "新收录" : `${site.views} 浏览`}
                   </span>
                   <span className="flex items-center gap-1">
+                    <MessageSquare className="size-3.5" />
+                    {meta.commentCount} 评论
+                  </span>
+                  <span className="flex items-center gap-1">
                     <Heart className="size-3.5" />
                     {site.likes} 收藏
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3.5" />
-                    原型收录
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Hash className="size-3.5" />
-                    {blockTitle}
                   </span>
                 </div>
 
@@ -135,13 +138,28 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
                     className="h-10 rounded-full gradient-brand px-5 text-white shadow-[0_12px_26px_-14px_rgba(241,64,75,0.7)]"
                   >
                     <a
-                      href={site.url}
+                      href={goHref(site.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => addRecent(site.id)}
                     >
-                      访问站点
+                      打开网站
                       <ArrowUpRight className="size-4" />
+                    </a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="h-10 rounded-full px-4"
+                  >
+                    <a
+                      href={goHref(site.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => addRecent(site.id)}
+                    >
+                      <Smartphone className="size-4" />
+                      手机查看
                     </a>
                   </Button>
                   <Button
@@ -178,8 +196,8 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
               {[
                 { label: "网站地址", value: domain },
                 { label: "所属分类", value: blockTitle },
-                { label: "浏览热度", value: site.views === "0" ? "新收录" : site.views },
-                { label: "收藏数", value: site.likes },
+                { label: "所在地", value: meta.country },
+                { label: "收录时间", value: meta.publishedAt },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -196,12 +214,13 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
             {tags.length > 0 && (
               <div className="relative mt-4 flex flex-wrap gap-1.5">
                 {tags.map((tag) => (
-                  <span
+                  <Link
                     key={tag}
-                    className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground"
+                    href={`/tags/${encodeURIComponent(tag)}`}
+                    className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-brand-soft hover:text-brand"
                   >
                     # {tag}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}
@@ -375,7 +394,7 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
               className="mt-3 h-10 w-full rounded-full gradient-brand text-white shadow-[0_12px_26px_-14px_rgba(241,64,75,0.7)]"
             >
               <a
-                href={site.url}
+                href={goHref(site.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => addRecent(site.id)}
@@ -437,12 +456,13 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {tags.map((tag) => (
-                <span
+                <Link
                   key={tag}
-                  className="rounded-md border border-border/60 bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground"
+                  href={`/tags/${encodeURIComponent(tag)}`}
+                  className="rounded-md border border-border/60 bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground transition hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
                 >
                   # {tag}
-                </span>
+                </Link>
               ))}
             </div>
             <Link

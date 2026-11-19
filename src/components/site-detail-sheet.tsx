@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SiteIcon } from "@/components/site-icon";
 import { hostname } from "@/lib/search";
+import { goHref } from "@/lib/site";
 import { sites, siteById } from "@/data/nav";
 import { useNavStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -84,7 +85,7 @@ export function SiteDetailSheet() {
                   className="h-10 flex-1 rounded-full gradient-brand text-white shadow-[0_12px_26px_-14px_rgba(241,64,75,0.7)]"
                 >
                   <a
-                    href={site.url}
+                    href={goHref(site.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => addRecent(site.id)}
@@ -143,12 +144,13 @@ export function SiteDetailSheet() {
                   </h3>
                   <div className="flex flex-wrap gap-1.5">
                     {site.tags.map((tag) => (
-                      <span
+                      <Link
                         key={tag}
-                        className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground"
+                        href={`/tags/${encodeURIComponent(tag)}`}
+                        className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-brand-soft hover:text-brand"
                       >
                         # {tag}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>

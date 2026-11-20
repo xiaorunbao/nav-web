@@ -5,6 +5,7 @@ import { HeroSearch } from "@/components/hero-search";
 import { HotSection } from "@/components/hot-section";
 import { BlockSection } from "@/components/block-section";
 import { EmptyHint } from "@/components/empty-hint";
+import { TimezoneBar } from "@/components/timezone-bar";
 import { blocks, siteById } from "@/data/nav";
 import { useNavStore } from "@/lib/store";
 
@@ -58,6 +59,7 @@ export default function HomePage() {
   return (
     <div>
       <HeroSearch />
+      <TimezoneBar />
       <QueryBar />
       <HotSection />
 

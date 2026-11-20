@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Trophy } from "lucide-react";
-import { SiteCard } from "@/components/site-card";
+import { SiteIcon } from "@/components/site-icon";
 import { EmptyHint } from "@/components/empty-hint";
 import { blocks, siteById, sites, type NavSite } from "@/data/nav";
 import { parseCount } from "@/lib/site";
@@ -11,11 +12,11 @@ import { cn } from "@/lib/utils";
 type RankType = "sites" | "articles" | "software" | "books";
 type RankPeriod = "day" | "week" | "month" | "total";
 
-const TYPE_TABS: { id: RankType; label: string; blockId?: string }[] = [
-  { id: "sites", label: "网址" },
-  { id: "articles", label: "文章", blockId: "community" },
-  { id: "software", label: "软件", blockId: "apps" },
-  { id: "books", label: "书籍", blockId: "books" },
+const TYPE_TABS: { id: RankType; label: string; short: string; blockId?: string }[] = [
+  { id: "software", label: "软件排行榜", short: "软件", blockId: "apps" },
+  { id: "sites", label: "网址排行榜", short: "网址" },
+  { id: "articles", label: "文章排行榜", short: "文章", blockId: "community" },
+  { id: "books", label: "书籍排行榜", short: "书籍", blockId: "books" },
 ];
 
 const PERIOD_TABS: { id: RankPeriod; label: string; desc: string }[] = [
@@ -83,7 +84,6 @@ export default function RankingsPage() {
           ?.siteIds.map((id) => siteById[id])
           .filter(Boolean) as NavSite[])
       : sites;
-    // 加载中或统计不可用时，不沿用上一周期的埋点排序，回退目录热度兜底。
     const hasLive = liveLoaded && !loading && Object.keys(rankMap).length > 0;
     return [...pool].sort((a, b) => {
       const countA = rankMap[a.id] ?? 0;
@@ -93,24 +93,38 @@ export default function RankingsPage() {
     });
   }, [type, period, rankMap, liveLoaded, loading]);
 
+  const activeType = TYPE_TABS.find((item) => item.id === type);
   const activePeriod = PERIOD_TABS.find((item) => item.id === period);
 
   return (
     <div>
-      <section className="relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#f1404b_0%,#d92d3a_52%,#ff7a45_100%)] p-5 text-white shadow-[0_30px_70px_-30px_rgba(217,45,58,0.6)] ring-1 ring-white/10 sm:p-8">
+      {/* 红色渐变通栏 Hero */}
+      <section className="relative -mx-3 overflow-hidden bg-[linear-gradient(135deg,#f1404b_0%,#d92d3a_52%,#ff7a45_100%)] px-3 py-10 text-white sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6 sm:py-12">
         <div className="pointer-events-none absolute inset-0 dot-grid opacity-30" />
-        <div className="pointer-events-none absolute -right-16 -top-10 size-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-              <Trophy className="size-4" />
-            </span>
-            <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] uppercase tracking-wider">
-              Rankings
-            </span>
+        <Trophy
+          className="pointer-events-none absolute -right-10 -top-10 size-56 text-white/10"
+          strokeWidth={1}
+        />
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {TYPE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setType(tab.id)}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-xs transition sm:text-[13px]",
+                  type === tab.id
+                    ? "bg-white font-semibold text-foreground shadow-sm"
+                    : "text-white/80 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-[28px]">
-            网址热度榜
+
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight sm:text-3xl">
+            {activeType?.short}热度{activePeriod?.label}
           </h1>
           <p className="mt-2 text-xs text-white/75 sm:text-sm">
             {activePeriod?.desc}
@@ -118,25 +132,9 @@ export default function RankingsPage() {
         </div>
       </section>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-1 rounded-full bg-muted p-1">
-          {TYPE_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setType(tab.id)}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs transition",
-                type === tab.id
-                  ? "gradient-brand text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-1">
+      {/* 白卡榜单 */}
+      <section className="mt-5 rounded-2xl border border-border/70 bg-card p-4 card-shadow sm:p-5">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
           {PERIOD_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -145,9 +143,9 @@ export default function RankingsPage() {
                 setLoading(true);
               }}
               className={cn(
-                "rounded-full px-2.5 py-1 text-[11px] transition",
+                "rounded-full px-3.5 py-1.5 text-xs transition",
                 period === tab.id
-                  ? "border border-brand/15 bg-brand-soft font-semibold text-brand"
+                  ? "gradient-brand text-white shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
@@ -155,36 +153,33 @@ export default function RankingsPage() {
             </button>
           ))}
         </div>
-      </div>
 
-      <p className="mt-3 text-[11px] text-muted-foreground">
-        {loading
-          ? "正在加载本周期榜单…"
-          : liveLoaded
-            ? "榜单按站点真实点击统计排序；暂无埋点数据时按目录热度兜底展示。"
-            : "统计暂不可用，当前按目录热度兜底展示。"}
-      </p>
-
-      {list.length === 0 ? (
-        <div className="mt-4">
-          <EmptyHint text="该分类下暂无上榜站点" />
-        </div>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {list.map((site, index) => (
-            <SiteCard
-              key={site.id}
-              site={site}
-              rank={index + 1}
-              hotCount={
-                liveLoaded && !loading && rankMap[site.id] != null
-                  ? rankMap[site.id]
-                  : undefined
-              }
-            />
-          ))}
-        </div>
-      )}
+        {list.length === 0 ? (
+          <div className="mt-4">
+            <EmptyHint text="该分类下暂无上榜站点" />
+          </div>
+        ) : (
+          <div className="mt-4 space-y-2.5">
+            {list.map((site) => (
+              <Link
+                key={site.id}
+                href={`/sites/${site.id}.html`}
+                className="group flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-3 transition hover:bg-muted/70"
+              >
+                <SiteIcon site={site} size={38} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-foreground group-hover:text-brand">
+                    {site.name}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                    {site.desc}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

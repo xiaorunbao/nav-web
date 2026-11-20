@@ -13,6 +13,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const collapsed = useNavStore((state) => state.asideCollapsed);
   const pathname = usePathname();
   const isDetail = pathname.startsWith("/sites/");
+  const isBookmark = pathname === "/bookmark";
   const hasAside = !isDetail && (pathname === "/" || pathname === "/secondary");
 
   return (
@@ -27,12 +28,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
       >
         <div
           className={cn(
-            "mx-auto w-full max-w-[1480px] px-3 pb-4 sm:px-5 lg:px-6",
-            isDetail && "max-w-[1240px]"
+            "w-full",
+            !isBookmark &&
+              "mx-auto max-w-[1480px] px-3 pb-4 sm:px-5 lg:px-6",
+            isDetail && "mx-auto max-w-[1312px]"
           )}
         >
           {children}
-          <Footer />
+          {!isBookmark && <Footer />}
         </div>
       </main>
       <SiteDetailSheet />

@@ -3,6 +3,7 @@
 import { Search, X } from "lucide-react";
 import { HeroSearch } from "@/components/hero-search";
 import { HotSection } from "@/components/hot-section";
+import { LatestListings } from "@/components/latest-listings";
 import { BlockSection } from "@/components/block-section";
 import { EmptyHint } from "@/components/empty-hint";
 import { TimezoneBar } from "@/components/timezone-bar";
@@ -62,6 +63,7 @@ export default function HomePage() {
       <TimezoneBar />
       <QueryBar />
       <HotSection />
+      <LatestListings />
 
       <div id="blocks" className="mt-4 scroll-mt-28">
         {hasAny ? (

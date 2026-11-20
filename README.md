@@ -39,9 +39,9 @@ pnpm start --port 3100
 - 左侧分类树：9 个分类，可展开子分类并定位到区块
 - 紫渐变搜索 Banner：站内 / 百度 / Google / Bing / 知乎 / GitHub 引擎切换、热门词、收录统计
 - 多时区时钟条：北京、马尼拉、吉隆坡、新加坡、东京、伦敦、中欧、美东、美西实时走秒（纯前端 Intl 换算）
-- 热门网址 TOP 8：按浏览量排序，带排名角标
+- 热门网址 TOP 8：支持 发布 / 更新 / 浏览 / 点赞 / 收藏 / 评论 六个维度切换排序，带排名角标
 - 9 个分类区块：子分类标签筛选、折叠 / 展开、卡片详情
-- 页脚与悬浮工具（AI 入口、回到顶部）
+- 页脚与悬浮工具（AI 找站、我的书签、在线客服占位、消息通知占位、回到顶部）
 
 ### `/login` 登录
 
@@ -59,6 +59,12 @@ pnpm start --port 3100
 - 紧凑模式开关
 - 侧栏仅展示存在对应面板的分类，避免无效跳转
 
+### `/bookmark` 我的书签
+
+- 新标签页形态：实时时钟 + 时段问候 + 日期星期，读取本地登录态，未登录展示同步引导
+- 「我的收藏」「最近访问」两个区块，数据来自 Zustand 本地持久化（`favorites` / `recent`），复用站点卡片
+- 入口：顶栏导航、右侧悬浮工具条书签按钮；空态提供回首页找站点引导
+
 ### 通用交互
 
 - 全局搜索弹窗：热门搜索、大家都在看、实时过滤、Enter 打开详情
@@ -75,7 +81,16 @@ pnpm start --port 3100
 ### `/submit` 投稿收录
 
 - 投稿流程三步说明与收录标准
-- 投稿表单：必填校验、地址需 http(s)、分类下拉取自首页分类，提交后展示原型提示
+- 投稿表单：必填校验、地址需 http(s)、分类下拉取自首页分类；提交经 `POST /api/submissions` 落库
+- 闭环：**投稿 → 付费（可选）→ 审核 → 收录**；审核通过的投稿进入首页「最新收录」区块
+- 付费环节由 `NAV_PAYMENT_ENABLED` 自由开关：开启时投稿先生成待支付订单（原型模拟支付），支付完成后才可审核收录；关闭时投稿直接进入待审核，不产生费用记录
+
+### `/admin/submissions` 投稿审核后台
+
+- 仅 `NAV_ADMIN_ACCOUNTS` 白名单内的管理员账号可访问，未登录 / 非管理员展示拦截页
+- 列表展示投稿信息、付费状态、审核状态、订单号 / 金额、提交时间与驳回原因
+- 操作：通过并收录、驳回（可填原因）；付费开启时未支付订单禁用「通过并收录」
+- 审核通过即收录，公开接口 `GET /api/listings` 返回已收录投稿，供首页合并展示
 
 ### `/rankings` 排行榜
 
@@ -87,6 +102,7 @@ pnpm start --port 3100
 ### `/iotags` 标签云墙
 
 - 顶部统计卡：收录标签数、收录站点数、精选分类数
+- 标签按所属分类主题分组渲染（分组图标 + 红点标题 + 标签云），未归类标签归入「其他」
 - 标签按出现频次分档字号，点击进入对应标签聚合页
 
 ### `/tags/[tag]` 标签聚合
@@ -113,8 +129,18 @@ pnpm start --port 3100
 - UA 过滤：`src/lib/bot.ts` 识别搜索引擎爬虫、采集脚本与命令行客户端（Googlebot / Baiduspider / curl / python-requests / headless 等），空 UA 与命中规则的访问不计入统计
 - 详情视图挂载后轻量上报一次 PV：`POST /api/analytics/view`（body `{ siteId }`）
 - 只读查询接口：`GET /api/analytics/trend?siteId=` 近 30 天趋势；`GET /api/analytics/rankings?period=day|week|month|total` 周期点击榜单；连库异常时返回空数据与 `ok:false`，由前端按空态 / 本地热度兜底
-- 详情页「近 30 天访问趋势」为纯 SVG 双折线图（点击 / 浏览），客户端拉取趋势数据，无数据展示空态
+- 详情页「近 30 天访问趋势」为纯 SVG 折线图，按终端渠道拆出 PC / 移动端 / 合计三条系列（数据来自事件明细按 channel 聚合），客户端拉取趋势数据，无数据展示空态
 - 埋点为旁路数据，异常只记服务端日志，不影响页面渲染与跳转
+
+### 评论与投稿（后端）
+
+- 评论表 `nav_site_comment`：站点、楼层回复（`parentId`）、登录用户 / 游客身份、昵称、邮箱、头像、头衔标签、地区、内容、点赞数、审核状态与审计字段
+- 投稿表 `nav_site_submission`：站点名、地址、建议分类、介绍、联系方式、审核状态（`pending / approved / rejected`）、付费状态（`not_required / unpaid / paid / refunded`）、金额、订单号、支付时间、审核人 / 时间、驳回原因与审计字段
+- 仓储 `src/lib/comments.ts`：`listComments` 组装根评论 + 回复楼层树、`countComments` 总数、`createComment` 写入；`src/lib/submissions.ts`：`createSubmission`、`getSubmission`、`listSubmissions`、`markSubmissionPaid`、`reviewSubmission`、`listApprovedListings`
+- 配置与鉴权：`src/lib/payment.ts` 读取付费开关与金额；`src/lib/admin.ts` 按 `NAV_ADMIN_ACCOUNTS` 白名单判定管理员
+- 评论接口：`GET /api/comments?siteId=` 返回楼层树与总数；`POST /api/comments` 发表评论，登录用户自动带身份（昵称 / 头像 / 头衔「体验官」），游客可填昵称，邮箱选填；连库异常返回空列表兜底
+- 投稿接口：`POST /api/submissions` 校验名称与 http(s) 地址后落库；`GET /api/submissions` 管理员后台列表；`POST /api/submissions/[id]/pay` 模拟支付标记已付；`POST /api/submissions/[id]/review` 通过收录 / 驳回，付费开启时未支付不可通过；`GET /api/listings` 公开返回已收录投稿
+- 详情页评论区为真实数据：楼层列表、回复楼层、相对时间、发表后刷新；头部评论数接真实总数，库不可用时回退到演示派生值
 
 ### 站点详情页 SEO / OG
 
@@ -124,7 +150,7 @@ pnpm start --port 3100
 
 ### 导航入口说明
 
-- 头部导航落地入口：快速筛选（`/iotags`）、次级导航（`/secondary`）、排行榜（`/rankings`）、关于（`/about`）、投稿收录（`/submit`）
+- 头部导航落地入口：快速筛选（`/iotags`）、次级导航（`/secondary`）、排行榜（`/rankings`）、我的书签（`/bookmark`）、关于（`/about`）、投稿收录（`/submit`）
 - 登录已接入数据库用户体系（`nav_user`），入口为 `/login`；开通会员仍为原型占位，点击弹出“尚未接入”说明
 - 分类侧栏只在首页与次级导航渲染，避免在没有分类锚点的页面出现无效跳转
 
@@ -139,7 +165,7 @@ cd nav-web
 npm run db:init
 ```
 
-该命令按文件名顺序执行 `sql/*.sql`，创建 `nav_user` 表，再用 scrypt 生成密码摘要并 upsert 演示账号。`nav_user` 与爬虫表保持同一套风格：`id varchar(32)` 主键、camelCase 字段、`createTime/createBy/updateTime/updateBy/yn` 审计字段。
+该命令按文件名顺序执行 `sql/*.sql`，创建 `nav_user`、`nav_site_event`、`nav_site_comment`、`nav_site_submission` 表，再用 scrypt 生成密码摘要并 upsert 演示账号。各表与爬虫表保持同一套风格：`id varchar(32)` 主键、camelCase 字段、`createTime/createBy/updateTime/updateBy/yn` 审计字段。
 
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -147,6 +173,9 @@ npm run db:init
 | `NAV_DEMO_ACCOUNT` | 初始化时写入的演示账号 | `demo` |
 | `NAV_DEMO_PASSWORD` | 演示密码（仅以 scrypt 摘要落库） | `demo1234` |
 | `APP_URL` | 站点对外地址，用于生成 OAuth 回调；本地开发可留空 | 请求 origin |
+| `NAV_PAYMENT_ENABLED` | 投稿收录付费环节开关：`true` 先付费后审核，`false` 直接待审核 | `false` |
+| `NAV_PAYMENT_AMOUNT` | 投稿收录费用（元），付费开启时生效 | `9.90` |
+| `NAV_ADMIN_ACCOUNTS` | 后台审核管理员账号白名单（逗号分隔，匹配用户名 / 昵称） | `demo` |
 | `MYSQL_HOST` | MySQL 主机 | `127.0.0.1` |
 | `MYSQL_PORT` | MySQL 端口 | `3307` |
 | `MYSQL_DATABASE` | 数据库名 | `nav` |
@@ -196,6 +225,9 @@ web/
 ├─ public/logo.png                 # 站点 Logo
 ├─ sql/001_nav_user.sql            # 用户表 DDL
 ├─ sql/002_site_event.sql          # 访问埋点事件明细 + 日聚合表 DDL
+├─ sql/003_site_comment.sql        # 站点评论表 DDL（楼层回复）
+├─ sql/004_site_submission.sql      # 站点投稿表 DDL（付费 / 审核字段）
+├─ sql/005_submission_payment_review.sql  # 旧库补齐付费 / 审核字段的幂等迁移
 ├─ scripts/init-db.mjs             # 建表 + 演示账号初始化
 ├─ src/
 │  ├─ app/
@@ -208,9 +240,15 @@ web/
 │  │  ├─ api/analytics/view/route.ts      # 详情页 PV 上报
 │  │  ├─ api/analytics/trend/route.ts      # 近 30 天趋势只读查询
 │  │  ├─ api/analytics/rankings/route.ts   # 周期点击榜单只读查询
+│  │  ├─ api/comments/route.ts             # 评论列表与发表
+│  │  ├─ api/submissions/route.ts         # 投稿落库 + 管理员列表
+│  │  ├─ api/submissions/[id]/pay/route.ts  # 模拟支付标记已付
+│  │  ├─ api/submissions/[id]/review/route.ts # 审核通过 / 驳回
+│  │  ├─ api/listings/route.ts            # 已收录投稿公开只读
 │  │  └─ (site)/
 │  │     ├─ page.tsx               # 首页
 │  │     ├─ secondary/page.tsx      # 次级导航
+│  │     ├─ bookmark/page.tsx       # 我的书签（收藏 + 最近访问 + 时钟）
 │  │     ├─ sites/[slug]/page.tsx   # 站点详情（含 SEO / OG 元信息）
 │  │     ├─ rankings/page.tsx       # 排行榜（类型 × 周期）
 │  │     ├─ iotags/page.tsx         # 标签云墙
@@ -218,9 +256,14 @@ web/
 │  │     ├─ search/page.tsx        # 独立搜索结果页
 │  │     ├─ go/route.ts            # 外链中转 + visit 埋点落库
 │  │     ├─ about/page.tsx          # 关于与更新日志
-│  │     └─ submit/page.tsx         # 投稿收录
+│  │     ├─ submit/page.tsx         # 投稿收录
+│  │     └─ admin/submissions/page.tsx  # 投稿审核后台（管理员）
 │  ├─ components/                  # 头部、侧栏、Hero、卡片、抽屉、弹窗、登录页等
-│  │  ├─ site-trend-chart.tsx      # 详情页近 30 天访问趋势 SVG 图
+│  │  ├─ site-trend-chart.tsx      # 详情页近 30 天 PC/移动/合计趋势 SVG 图
+│  │  ├─ bookmark-view.tsx         # 书签页视图（时钟、收藏、最近访问）
+│  │  ├─ site-comments.tsx         # 详情页评论区（楼层列表、回复、发表）
+│  │  ├─ admin-submissions-view.tsx # 后台投稿审核列表与操作
+│  │  ├─ latest-listings.tsx       # 首页「最新收录」区块
 │  │  └─ timezone-bar.tsx          # 首页多时区实时时钟条
 │  ├─ data/nav.ts                  # 104 个站点、9 个区块、6 个面板
 │  └─ lib/
@@ -232,6 +275,10 @@ web/
 │     ├─ oauth-shared.ts           # 社交平台 ID、名称与环境变量名
 │     ├─ password.ts               # scrypt 哈希与校验
 │     ├─ users.ts                  # nav_user 用户仓储
+│     ├─ comments.ts               # nav_site_comment 评论仓储（楼层树）
+│     ├─ submissions.ts            # nav_site_submission 投稿 / 付费 / 审核仓储
+│     ├─ payment.ts               # 付费开关与金额环境变量读取
+│     ├─ admin.ts                 # 后台管理员白名单判定
 │     ├─ store.ts                  # Zustand 状态与持久化
 │     ├─ search.ts                 # 搜索评分
 │     ├─ site.ts                  # 站点元信息派生、中转链接、标签聚合与排序
@@ -245,7 +292,7 @@ web/
 - 站点数据整理自参考站公开页面（首页、次级页及 6 个分类页），另补充书籍期刊与软件游戏条目，共 **104 个唯一站点**。
 - `src/data/nav.ts` 由抓取脚本生成，脚本位于项目上级目录：`../.tmp-ref/gen.mjs`。需要调整数据时请修改脚本后重新生成，不要直接手改数据文件。
 - 图标来自 `https://favicon.im/<域名>`，部分站点无有效图标时会显示默认占位图。
-- 详情页展示的所在地、收录时间、更新时间、评论数等演示字段由 `src/lib/site.ts` 按站点 id 确定性派生，刷新后稳定一致；接入真实数据库后可直接替换为字段读取。
+- 详情页的所在地、收录时间、更新时间等演示字段由 `src/lib/site.ts` 按站点 id 确定性派生，刷新后稳定一致；评论数已接 `nav_site_comment` 真实总数，库不可用时回退到派生演示值，其余演示字段接入真实库后可直接替换为字段读取。
 - 所有内容仅用于界面与交互演示。
 
 ## 说明

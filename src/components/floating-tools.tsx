@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUp, Search, Sparkles, WandSparkles } from "lucide-react";
+import {
+  ArrowUp,
+  Bell,
+  Bookmark,
+  MessageCircle,
+  Search,
+  Sparkles,
+  WandSparkles,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +27,25 @@ import type { NavSite } from "@/data/nav";
 
 const PROMPTS = ["找一个在线配色工具", "AI 设计工具推荐", "免费素材站", "团队设计博客"];
 
+type NoticeKind = "qq" | "bell" | null;
+
+const NOTICE_CONTENT: Record<Exclude<NoticeKind, null>, { title: string; desc: string }> = {
+  qq: {
+    title: "在线客服",
+    desc: "原型演示阶段暂未配置客服 QQ 临时会话；接入真实站点后可通过 wpa.qq.com 唤起 QQ 聊天窗口。",
+  },
+  bell: {
+    title: "消息通知",
+    desc: "暂无新通知。评论回复、收录审核结果等消息会在这里提醒，当前为原型占位。",
+  },
+};
+
 export function FloatingTools() {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [answered, setAnswered] = useState(false);
   const [results, setResults] = useState<NavSite[]>([]);
+  const [notice, setNotice] = useState<NoticeKind>(null);
   const router = useRouter();
 
   const ask = (text: string) => {
@@ -41,6 +64,27 @@ export function FloatingTools() {
         >
           <span className="absolute inset-0 animate-ping rounded-full bg-purple-400/30" />
           <Sparkles className="relative size-5" />
+        </button>
+        <Link
+          href="/bookmark"
+          aria-label="我的书签"
+          className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition hover:text-brand"
+        >
+          <Bookmark className="size-4" />
+        </Link>
+        <button
+          onClick={() => setNotice("qq")}
+          aria-label="在线客服"
+          className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition hover:text-brand"
+        >
+          <MessageCircle className="size-4" />
+        </button>
+        <button
+          onClick={() => setNotice("bell")}
+          aria-label="消息通知"
+          className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition hover:text-brand"
+        >
+          <Bell className="size-4" />
         </button>
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -145,6 +189,17 @@ export function FloatingTools() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={notice !== null} onOpenChange={(next) => !next && setNotice(null)}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>{notice ? NOTICE_CONTENT[notice].title : ""}</DialogTitle>
+            <DialogDescription>
+              {notice ? NOTICE_CONTENT[notice].desc : ""}
+            </DialogDescription>
+          </DialogHeader>
         </DialogContent>
       </Dialog>
     </>

@@ -1,49 +1,79 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { TrendingUp } from "lucide-react";
-import type { SiteTrendPoint } from "@/lib/analytics";
+import { BarChart3 } from "lucide-react";
+import type { SiteChannelPoint } from "@/lib/analytics";
 
-const W = 640;
-const H = 200;
-const PAD = { left: 10, right: 10, top: 14, bottom: 24 };
+const W = 900;
+const H = 260;
+const PAD = { left: 44, right: 12, top: 10, bottom: 30 };
 
-const VISIT_COLOR = "#f1404b";
-const VIEW_COLOR = "#9aa1ad";
+const PC_COLOR = "#4b5ce8";
+const MOBILE_COLOR = "#67c04b";
+const TOTAL_COLOR = "#f5b02d";
 
-function toPath(values: number[], max: number, count: number) {
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  return values
-    .map((value, i) => {
-      const x = PAD.left + (i * innerW) / (count - 1);
-      const ratio = max > 0 ? value / max : 0;
-      const y = PAD.top + (1 - ratio) * innerH;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+const TICKS = [0, 3, 6, 9, 12];
+
+type SeriesKey = "desktop" | "mobile" | "total";
+
+function innerSize() {
+  return { innerW: W - PAD.left - PAD.right, innerH: H - PAD.top - PAD.bottom };
 }
 
-function lastPoint(values: number[], max: number, count: number) {
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const i = count - 1;
-  const value = values[i] ?? 0;
-  const x = PAD.left + (i * innerW) / (count - 1);
-  const y = PAD.top + (1 - (max > 0 ? value / max : 0)) * innerH;
-  return { x, y };
+function yOf(value: number, max: number) {
+  const { innerH } = innerSize();
+  const ratio = max > 0 ? Math.min(1, value / max) : 0;
+  return PAD.top + (1 - ratio) * innerH;
+}
+
+function xOf(index: number, count: number) {
+  const { innerW } = innerSize();
+  if (count <= 1) return PAD.left + innerW / 2;
+  return PAD.left + (index * innerW) / (count - 1);
+}
+
+/** 平滑折线（与原型「合计」曲线一致，使用三次贝塞尔过渡）。 */
+function smoothPath(values: number[], max: number) {
+  const count = values.length;
+  if (count === 0) return "";
+  const pts = values.map((value, i) => ({ x: xOf(i, count), y: yOf(value, max) }));
+  if (pts.length < 3) {
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  }
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+function LegendSquare({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+      <span className="h-3 w-4 rounded-[2px]" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
 }
 
 export function SiteTrendChart({ siteId }: { siteId: string }) {
-  const [points, setPoints] = useState<SiteTrendPoint[] | null>(null);
+  const [points, setPoints] = useState<SiteChannelPoint[] | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     fetch(`/api/analytics/trend?siteId=${encodeURIComponent(siteId)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("bad"))))
-      .then((data: { points?: SiteTrendPoint[] }) => {
-        if (active) setPoints(data.points ?? []);
+      .then((data: { channelPoints?: SiteChannelPoint[] }) => {
+        if (active) setPoints(data.channelPoints ?? []);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -54,133 +84,177 @@ export function SiteTrendChart({ siteId }: { siteId: string }) {
   }, [siteId]);
 
   const summary = useMemo(() => {
-    if (!points) return { visits: 0, views: 0, max: 1, empty: true };
-    const visits = points.reduce((sum, p) => sum + p.visits, 0);
-    const views = points.reduce((sum, p) => sum + p.views, 0);
-    const max = Math.max(
-      1,
-      ...points.map((p) => Math.max(p.visits, p.views))
+    const empty = { desktop: 0, mobile: 0, total: 0, max: 12, empty: true };
+    if (!points || points.length === 0) return empty;
+    const totals = points.reduce(
+      (acc, p) => ({
+        desktop: acc.desktop + p.desktop,
+        mobile: acc.mobile + p.mobile,
+        total: acc.total + p.total,
+      }),
+      { desktop: 0, mobile: 0, total: 0 }
     );
-    return { visits, views, max, empty: visits + views === 0 };
+    const peak = Math.max(
+      1,
+      ...points.map((p) => Math.max(p.desktop, p.mobile, p.total))
+    );
+    const max = Math.max(12, Math.ceil(peak / 3) * 3);
+    return { ...totals, max, empty: totals.total === 0 };
   }, [points]);
 
   const n = points?.length ?? 0;
-  const visitsPath = useMemo(
-    () => (points ? toPath(points.map((p) => p.visits), summary.max, n) : ""),
-    [points, summary.max, n]
-  );
-  const viewsPath = useMemo(
-    () => (points ? toPath(points.map((p) => p.views), summary.max, n) : ""),
-    [points, summary.max, n]
-  );
-  const visitsLast = useMemo(
-    () =>
-      points
-        ? lastPoint(points.map((p) => p.visits), summary.max, n)
-        : { x: 0, y: 0 },
-    [points, summary.max, n]
-  );
-  const viewsLast = useMemo(
-    () =>
-      points
-        ? lastPoint(points.map((p) => p.views), summary.max, n)
-        : { x: 0, y: 0 },
+  const values = (key: SeriesKey) => points?.map((p) => p[key]) ?? [];
+  const totalPath = useMemo(
+    () => (points && n > 0 ? smoothPath(values("total"), summary.max) : ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [points, summary.max, n]
   );
 
-  const labelIndexes = n > 1 ? [0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1] : [];
+  const barWidth = n > 0 ? Math.min(7, Math.max(3, 520 / n / 3)) : 5;
+  const labelStep = n > 0 ? Math.max(1, Math.ceil(n / 14)) : 1;
 
   return (
-    <section className="rounded-2xl border border-border/70 bg-card p-5 card-shadow sm:p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg gradient-brand-soft text-brand ring-1 ring-brand/10">
-          <TrendingUp className="size-3.5" />
-        </span>
-        <h2 className="text-base font-semibold text-foreground">
-          近 30 天访问趋势
-        </h2>
-        <div className="ml-auto flex items-center gap-4 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: VISIT_COLOR }}
-            />
-            点击 {summary.visits}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: VIEW_COLOR }}
-            />
-            浏览 {summary.views}
-          </span>
-        </div>
+    <section className="mt-6">
+      <div className="flex items-center gap-1.5">
+        <BarChart3 className="size-4 text-muted-foreground" />
+        <h2 className="text-[13px] font-medium text-foreground">数据统计</h2>
       </div>
 
-      {points === null && !failed ? (
-        <div className="mt-4 flex h-[200px] items-center justify-center rounded-xl bg-muted/30 text-xs text-muted-foreground">
-          趋势数据加载中…
+      <div className="mt-2.5 rounded-[10px] bg-card px-4 pb-4 pt-3 shadow-[0_1px_3px_rgba(20,20,30,0.05)]">
+        <div className="flex flex-wrap items-center justify-center gap-5">
+          <LegendSquare color={PC_COLOR} label="pc" />
+          <LegendSquare color={MOBILE_COLOR} label="移动端" />
+          <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <span className="flex items-center">
+              <span className="h-[2px] w-4" style={{ backgroundColor: TOTAL_COLOR }} />
+              <span
+                className="size-2 rounded-full border"
+                style={{ borderColor: TOTAL_COLOR, backgroundColor: "#fff" }}
+              />
+            </span>
+            合计
+          </span>
         </div>
-      ) : failed || summary.empty ? (
-        <div className="mt-4 flex h-[200px] items-center justify-center rounded-xl bg-muted/30 text-xs text-muted-foreground">
-          近 30 天暂无访问数据，产生点击与浏览后会自动生成趋势
-        </div>
-      ) : (
-        <div className="mt-4">
+
+        {points === null && !failed ? (
+          <div className="mt-3 flex h-[230px] items-center justify-center text-xs text-muted-foreground">
+            趋势数据加载中…
+          </div>
+        ) : failed ? (
+          <div className="mt-3 flex h-[230px] items-center justify-center text-xs text-muted-foreground">
+            趋势数据暂时不可用，请稍后再试
+          </div>
+        ) : (
           <svg
             viewBox={`0 0 ${W} ${H}`}
-            className="h-[200px] w-full"
+            className="mt-2 h-[230px] w-full"
             role="img"
-            aria-label="近 30 天访问趋势折线图"
+            aria-label="近 30 天 PC / 移动端访问量与会话合计趋势"
           >
-            {[0.25, 0.5, 0.75].map((ratio) => (
-              <line
-                key={ratio}
-                x1={PAD.left}
-                x2={W - PAD.right}
-                y1={PAD.top + (H - PAD.top - PAD.bottom) * ratio}
-                y2={PAD.top + (H - PAD.top - PAD.bottom) * ratio}
-                stroke="currentColor"
-                strokeOpacity="0.08"
-                strokeDasharray="3 4"
+            {TICKS.map((tick) => {
+              const y = yOf(tick, summary.max);
+              return (
+                <g key={tick}>
+                  <line
+                    x1={PAD.left}
+                    x2={W - PAD.right}
+                    y1={y}
+                    y2={y}
+                    stroke="currentColor"
+                    strokeOpacity="0.12"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={PAD.left - 10}
+                    y={y + 4}
+                    textAnchor="end"
+                    className="fill-muted-foreground"
+                    fontSize="10"
+                  >
+                    {tick}
+                  </text>
+                </g>
+              );
+            })}
+
+            {points?.map((point, index) => {
+              const x = xOf(index, n);
+              return (
+                <g key={point.date ?? index}>
+                  <rect
+                    x={x - barWidth - 1.5}
+                    y={yOf(point.desktop, summary.max)}
+                    width={barWidth}
+                    height={Math.max(1, yOf(0, summary.max) - yOf(point.desktop, summary.max))}
+                    fill={PC_COLOR}
+                    rx="1"
+                  />
+                  <rect
+                    x={x + 1.5}
+                    y={yOf(point.mobile, summary.max)}
+                    width={barWidth}
+                    height={Math.max(1, yOf(0, summary.max) - yOf(point.mobile, summary.max))}
+                    fill={MOBILE_COLOR}
+                    rx="1"
+                  />
+                </g>
+              );
+            })}
+
+            {totalPath && (
+              <path
+                d={totalPath}
+                fill="none"
+                stroke={TOTAL_COLOR}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
               />
-            ))}
+            )}
 
-            <path
-              d={viewsPath}
-              fill="none"
-              stroke={VIEW_COLOR}
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            <path
-              d={visitsPath}
-              fill="none"
-              stroke={VISIT_COLOR}
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {points?.map((point, index) =>
+              index % 2 === 0 || index === n - 1 ? (
+                <circle
+                  key={`dot-${index}`}
+                  cx={xOf(index, n)}
+                  cy={yOf(point.total, summary.max)}
+                  r="2.5"
+                  fill="#fff"
+                  stroke={TOTAL_COLOR}
+                  strokeWidth="1.5"
+                />
+              ) : null
+            )}
 
-            <circle cx={viewsLast.x} cy={viewsLast.y} r="3" fill={VIEW_COLOR} />
-            <circle cx={visitsLast.x} cy={visitsLast.y} r="3.5" fill={VISIT_COLOR} />
+            {points?.map((point, index) =>
+              index % labelStep === 0 || index === n - 1 ? (
+                <text
+                  key={`label-${index}`}
+                  x={xOf(index, n)}
+                  y={H - 8}
+                  textAnchor="middle"
+                  className="fill-muted-foreground"
+                  fontSize="10"
+                >
+                  {point.date.slice(5).replace("-", ".")}
+                </text>
+              ) : null
+            )}
 
-            {labelIndexes.map((index) => (
+            {summary.empty && (
               <text
-                key={index}
-                x={PAD.left + (index * (W - PAD.left - PAD.right)) / (n - 1)}
-                y={H - 8}
+                x={PAD.left + (W - PAD.left - PAD.right) / 2}
+                y={PAD.top + (H - PAD.top - PAD.bottom) / 2}
                 textAnchor="middle"
                 className="fill-muted-foreground"
-                fontSize="10"
+                fontSize="12"
               >
-                {points?.[index]?.date.slice(5)}
+                近 30 天暂无访问数据，产生点击后会自动生成 PC / 移动端趋势
               </text>
-            ))}
+            )}
           </svg>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 }

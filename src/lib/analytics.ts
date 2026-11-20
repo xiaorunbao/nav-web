@@ -20,6 +20,13 @@ export type SiteTrendPoint = {
   views: number;
 };
 
+export type SiteChannelPoint = {
+  date: string;
+  desktop: number;
+  mobile: number;
+  total: number;
+};
+
 export type PeriodRank = {
   siteId: string;
   count: number;
@@ -131,6 +138,51 @@ export async function getSiteTrend(
     const date = localDate(d);
     const fallback = byDate.get(date) ?? { visits: 0, views: 0 };
     points.push({ date, ...fallback });
+  }
+  return points;
+}
+
+/** 按终端渠道（PC / 移动端）聚合近 N 天点击量，补零返回；合计 = PC + 移动。 */
+export async function getSiteChannelTrend(
+  siteId: string,
+  days = 30
+): Promise<SiteChannelPoint[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days + 1);
+  const [rows] = await getDb().execute(
+    `SELECT DATE(\`createTime\`) AS \`d\`, \`channel\`, COUNT(*) AS \`c\`
+     FROM \`nav_site_event\`
+     WHERE \`siteId\` = ? AND \`eventType\` = 'visit' AND \`createTime\` >= ?
+     GROUP BY DATE(\`createTime\`), \`channel\``,
+    [siteId, localDate(since)]
+  );
+
+  const byDate = new Map<string, { desktop: number; mobile: number }>();
+  for (const row of rows as Array<{
+    d: Date | string;
+    channel: string | null;
+    c: number;
+  }>) {
+    const date =
+      typeof row.d === "string" ? row.d.slice(0, 10) : localDate(new Date(row.d));
+    const entry = byDate.get(date) ?? { desktop: 0, mobile: 0 };
+    if (row.channel === "mobile") entry.mobile += Number(row.c) || 0;
+    else entry.desktop += Number(row.c) || 0;
+    byDate.set(date, entry);
+  }
+
+  const points: SiteChannelPoint[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const date = localDate(d);
+    const entry = byDate.get(date) ?? { desktop: 0, mobile: 0 };
+    points.push({
+      date,
+      desktop: entry.desktop,
+      mobile: entry.mobile,
+      total: entry.desktop + entry.mobile,
+    });
   }
   return points;
 }

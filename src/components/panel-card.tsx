@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { NavIcon } from "@/components/nav-icons";
 import { SiteIcon } from "@/components/site-icon";
 import { EmptyHint } from "@/components/empty-hint";
@@ -32,11 +32,9 @@ export function PanelCard({
   const compact = useNavStore((state) => state.compact);
   const expanded = useNavStore((state) => state.expanded[`panel-${panel.id}`] ?? false);
   const toggleExpanded = useNavStore((state) => state.toggleExpanded);
-  const setSelectedSite = useNavStore((state) => state.setSelectedSite);
   const addRecent = useNavStore((state) => state.addRecent);
   const router = useRouter();
   const [tab, setTab] = useState<string | null>(null);
-
   const q = query.trim().toLowerCase();
   const all = panel.siteIds.map((id) => siteById[id]).filter(Boolean);
   const filtered = all.filter((site) => {
@@ -143,17 +141,6 @@ export function PanelCard({
                 </span>
               )}
             </span>
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                addRecent(site.id);
-                setSelectedSite(site.id);
-              }}
-              aria-label="快速预览"
-              className="shrink-0 rounded-md p-1 text-muted-foreground/60 opacity-0 transition hover:text-brand group-hover:opacity-100"
-            >
-              <Eye className="size-3.5" />
-            </button>
             <span className="shrink-0 rounded-md p-1 text-muted-foreground/60 transition group-hover:bg-muted group-hover:text-brand">
               <ArrowUpRight className="size-3.5" />
             </span>

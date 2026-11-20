@@ -1,4 +1,4 @@
-import { sites, type NavSite } from "@/data/nav";
+import { blocks, siteById, sites, type NavSite } from "@/data/nav";
 
 /** 解析 "2.2K" / "646" / "1.2W" / "0" 这类展示计数为数值，便于排序比较。 */
 export function parseCount(value?: string): number {
@@ -69,6 +69,22 @@ export function formatRelative(dateStr: string): string {
   return `${Math.floor(month / 12)} 年前更新`;
 }
 
+/** 评论时间：刚刚 / x 分钟前 / x 小时前 / x 天前，超 30 天回退日期。 */
+export function formatCommentTime(iso?: string | null): string {
+  if (!iso) return "";
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return "";
+  const diff = Date.now() - time;
+  if (diff < 60_000) return "刚刚";
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(iso).toLocaleDateString("zh-CN");
+}
+
 /** 出站链接统一走 /go 中转，便于后续统计点击量与统一风控出口。 */
 export function goHref(url: string): string {
   return `/go?url=${encodeURIComponent(url)}`;
@@ -87,15 +103,64 @@ export function allTags(): { tag: string; count: number }[] {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "zh"));
 }
 
-export type RankMetric = "views" | "likes" | "comments";
+export type TagGroup = {
+  title: string;
+  icon: string;
+  tags: { tag: string; count: number }[];
+};
 
-function rankWeight(site: NavSite, metric: RankMetric): number {
-  if (metric === "likes") return parseCount(site.likes);
-  if (metric === "comments") return getSiteMeta(site).commentCount;
-  return parseCount(site.views);
+/** 按所属分类把标签分组，供标签云墙按主题渲染。 */
+export function tagGroups(): TagGroup[] {
+  return blocks
+    .map((block) => {
+      const map = new Map<string, number>();
+      for (const id of block.siteIds) {
+        const site = siteById[id];
+        if (!site) continue;
+        for (const tag of [...site.tags, ...site.subs]) {
+          map.set(tag, (map.get(tag) ?? 0) + 1);
+        }
+      }
+      return {
+        title: block.title,
+        icon: block.icon,
+        tags: [...map.entries()]
+          .map(([tag, count]) => ({ tag, count }))
+          .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "zh")),
+      };
+    })
+    .filter((group) => group.tags.length > 0);
 }
 
-/** 按指定指标对全站站点排序（降序）。 */
-export function rankSites(metric: RankMetric): NavSite[] {
-  return [...sites].sort((a, b) => rankWeight(b, metric) - rankWeight(a, metric));
+export type RankMetric =
+  | "published"
+  | "updated"
+  | "views"
+  | "likes"
+  | "favorites"
+  | "comments";
+
+function rankWeight(site: NavSite, metric: RankMetric): number {
+  const meta = getSiteMeta(site);
+  switch (metric) {
+    case "published":
+      return new Date(meta.publishedAt).getTime();
+    case "updated":
+      return new Date(meta.updatedAt).getTime();
+    case "likes":
+      return parseCount(site.likes);
+    // 演示数据未单独落「被收藏总数」，暂与点赞同源；接入真实库后替换为收藏数字段。
+    case "favorites":
+      return parseCount(site.likes);
+    case "comments":
+      return meta.commentCount;
+    case "views":
+    default:
+      return parseCount(site.views);
+  }
+}
+
+/** 按指定指标对站点排序（降序）；日期类指标越新权重越高。 */
+export function rankSites(metric: RankMetric, pool: NavSite[] = sites): NavSite[] {
+  return [...pool].sort((a, b) => rankWeight(b, metric) - rankWeight(a, metric));
 }

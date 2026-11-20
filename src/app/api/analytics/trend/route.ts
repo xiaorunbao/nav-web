@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSiteTrend } from "@/lib/analytics";
+import { getSiteChannelTrend, getSiteTrend } from "@/lib/analytics";
 import { siteById } from "@/data/nav";
 
-/** 详情页近 30 天访问趋势（点击 visit / 浏览 view 逐日数据）。 */
+/** 详情页近 30 天访问趋势：点击/浏览逐日数据 + PC/移动端渠道拆分。 */
 export async function GET(request: Request) {
   const siteId = new URL(request.url).searchParams.get("siteId");
   if (!siteId || !siteById[siteId]) {
@@ -10,15 +10,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    const points = await getSiteTrend(siteId, 30);
+    const [points, channelPoints] = await Promise.all([
+      getSiteTrend(siteId, 30),
+      getSiteChannelTrend(siteId, 30),
+    ]);
     return NextResponse.json(
-      { ok: true, points },
+      { ok: true, points, channelPoints },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
     console.error("[analytics] trend 查询失败：", error);
     return NextResponse.json(
-      { ok: false, points: [] },
+      { ok: false, points: [], channelPoints: [] },
       { headers: { "Cache-Control": "no-store" } }
     );
   }

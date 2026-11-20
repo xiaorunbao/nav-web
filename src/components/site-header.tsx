@@ -62,6 +62,7 @@ const NAV = [
   { label: "快速筛选", href: "/iotags" },
   { label: "次级导航", href: "/secondary" },
   { label: "排行榜", href: "/rankings" },
+  { label: "我的书签", href: "/bookmark" },
   { label: "关于", href: "/about" },
   { label: "投稿收录", href: "/submit" },
 ];
@@ -118,6 +119,7 @@ export function SiteHeader() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loggingOut, startLogout] = useTransition();
   const isListing = pathname === "/" || pathname === "/secondary";
+  const isBookmark = pathname === "/bookmark";
   const loginHref = "/login";
 
   useEffect(() => {
@@ -165,7 +167,14 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-16 border-b border-border/70 blur-bg shadow-[0_10px_30px_-26px_rgba(55,30,95,0.45)] lg:h-20">
+    <header
+      className={cn(
+        "fixed inset-x-0 top-0 z-40 h-16 lg:h-20",
+        isBookmark
+          ? "border-transparent bg-transparent shadow-none"
+          : "border-b border-border/70 blur-bg shadow-[0_10px_30px_-26px_rgba(55,30,95,0.45)]"
+      )}
+    >
       <div className="mx-auto flex h-full w-full max-w-[1480px] items-center gap-2 px-3 sm:px-5 lg:gap-4 lg:px-6">
         {asideCollapsed && isListing && (
           <Button
@@ -198,7 +207,9 @@ export function SiteHeader() {
                   "rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
                   active
                     ? "gradient-brand text-white shadow-[0_10px_22px_-12px_rgba(241,64,75,0.65)]"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : isBookmark
+                      ? "text-white/80 hover:bg-white/10 hover:text-white"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 {item.label}
@@ -212,7 +223,12 @@ export function SiteHeader() {
         <div className="flex items-center gap-1.5 lg:gap-2">
           <button
             onClick={() => setSearchOpen(true)}
-            className="hidden h-9 items-center gap-2 rounded-full border border-border/80 bg-card/80 px-3 text-xs text-muted-foreground shadow-[0_2px_10px_-6px_rgba(55,30,95,0.25)] transition hover:border-brand/30 hover:text-foreground lg:flex lg:w-44"
+            className={cn(
+              "hidden h-9 items-center gap-2 rounded-full border px-3 text-xs shadow-[0_2px_10px_-6px_rgba(55,30,95,0.25)] transition lg:flex lg:w-44",
+              isBookmark
+                ? "border-white/15 bg-white/15 text-white/80 hover:border-white/30 hover:text-white"
+                : "border-border/80 bg-card/80 text-muted-foreground hover:border-brand/30 hover:text-foreground"
+            )}
           >
             <Search className="size-3.5" />
             <span className="flex-1 text-left">搜索站点</span>
@@ -235,7 +251,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon-sm"
             onClick={toggleTheme}
-            className="text-muted-foreground"
+            className={cn(isBookmark && "text-white/80 hover:text-white")}
             aria-label="切换深浅色"
           >
             {theme === "dark" ? (
@@ -294,7 +310,7 @@ export function SiteHeader() {
               variant="ghost"
               size="sm"
               asChild
-              className="hidden text-muted-foreground md:inline-flex"
+              className={cn("hidden md:inline-flex", isBookmark ? "text-white/80 hover:text-white" : "text-muted-foreground")}
             >
               <Link href={loginHref}>
                 <LogIn className="size-4" />

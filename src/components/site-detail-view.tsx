@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowUpRight,
+  BarChart3,
   CheckCircle2,
   Clock,
   Eye,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteIcon } from "@/components/site-icon";
+import { SiteTrendChart } from "@/components/site-trend-chart";
 import { hostname } from "@/lib/search";
 import { formatRelative, getSiteMeta, goHref } from "@/lib/site";
 import { blocks, hotSiteIds, siteById, sites } from "@/data/nav";
@@ -32,6 +34,14 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
     const timer = window.setTimeout(() => window.scrollTo(0, 0), 80);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    fetch("/api/analytics/view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteId: site.id }),
+    }).catch(() => {});
+  }, [site.id]);
 
   const favorites = useNavStore((state) => state.favorites);
   const toggleFavorite = useNavStore((state) => state.toggleFavorite);
@@ -226,6 +236,8 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
             )}
           </section>
 
+          <SiteTrendChart siteId={site.id} />
+
           <section className="rounded-2xl border border-border/70 bg-card p-5 card-shadow sm:p-7">
             <div className="flex items-center gap-2">
               <span className="flex size-7 items-center justify-center rounded-lg gradient-brand-soft text-brand ring-1 ring-brand/10">
@@ -295,6 +307,37 @@ export function SiteDetailView({ site }: { site: DetailSite }) {
               特别声明：站点信息与描述整理自公开导航目录，不保证外部链接的准确性和完整性，
               仅用于界面原型演示。
             </p>
+          </section>
+
+          <section className="rounded-2xl border border-border/70 bg-card p-5 card-shadow sm:p-6">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-lg gradient-brand-soft text-brand ring-1 ring-brand/10">
+                <BarChart3 className="size-3.5" />
+              </span>
+              <h2 className="text-base font-semibold text-foreground">数据评估</h2>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {site.name} 浏览人数已达{" "}
+              {site.views === "0" ? "新收录" : site.views}。站点权重、搜索引擎收录与索引量可通过第三方站长工具查询；以下入口数据仅供参考，实际站点价值还需结合访问速度、用户体验等因素综合判断。
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { label: "5118数据", href: "https://www.5118.com/" },
+                { label: "爱站数据", href: "https://www.aizhan.com/" },
+                { label: "Chinaz数据", href: "https://www.chinaz.com/" },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-4 text-xs text-foreground transition hover:border-brand/30 hover:text-brand"
+                >
+                  {item.label}
+                  <ArrowUpRight className="size-3" />
+                </a>
+              ))}
+            </div>
           </section>
 
           {related.length > 0 && (

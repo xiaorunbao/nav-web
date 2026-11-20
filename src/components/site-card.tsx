@@ -11,10 +11,13 @@ import { cn } from "@/lib/utils";
 export function SiteCard({
   site,
   rank,
+  hotCount,
   className,
 }: {
   site: NavSite;
   rank?: number;
+  /** 真实埋点点击量；传入后覆盖目录演示浏览量展示。 */
+  hotCount?: number;
   className?: string;
 }) {
   const favorites = useNavStore((state) => state.favorites);
@@ -89,7 +92,12 @@ export function SiteCard({
             </span>
           )}
           <span className="ml-auto flex shrink-0 items-center gap-0.5 tabular-nums">
-            {site.views === "0" ? (
+            {typeof hotCount === "number" ? (
+              <>
+                <Eye className="size-3" />
+                {hotCount}
+              </>
+            ) : !site.views || site.views === "0" ? (
               <span className="text-[10px] text-muted-foreground/70">新收录</span>
             ) : (
               <>

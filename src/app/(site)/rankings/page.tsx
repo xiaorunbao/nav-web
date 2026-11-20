@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Trophy } from "lucide-react";
 import { SiteCard } from "@/components/site-card";
 import { EmptyHint } from "@/components/empty-hint";
@@ -44,6 +44,36 @@ function weight(site: NavSite, period: RankPeriod): number {
 export default function RankingsPage() {
   const [type, setType] = useState<RankType>("sites");
   const [period, setPeriod] = useState<RankPeriod>("day");
+  const [rankMap, setRankMap] = useState<Record<string, number>>({});
+  const [liveLoaded, setLiveLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const reqRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const reqId = ++reqRef.current;
+    fetch(`/api/analytics/rankings?period=${period}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("bad"))))
+      .then((data: { rankings?: { siteId: string; count: number }[] }) => {
+        if (!active || reqId !== reqRef.current) return;
+        const map: Record<string, number> = {};
+        for (const item of data.rankings ?? []) {
+          map[item.siteId] = item.count;
+        }
+        setRankMap(map);
+        setLiveLoaded(true);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active || reqId !== reqRef.current) return;
+        setRankMap({});
+        setLiveLoaded(false);
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [period]);
 
   const list = useMemo(() => {
     const tab = TYPE_TABS.find((item) => item.id === type);
@@ -53,8 +83,15 @@ export default function RankingsPage() {
           ?.siteIds.map((id) => siteById[id])
           .filter(Boolean) as NavSite[])
       : sites;
-    return [...pool].sort((a, b) => weight(b, period) - weight(a, period));
-  }, [type, period]);
+    // 加载中或统计不可用时，不沿用上一周期的埋点排序，回退目录热度兜底。
+    const hasLive = liveLoaded && !loading && Object.keys(rankMap).length > 0;
+    return [...pool].sort((a, b) => {
+      const countA = rankMap[a.id] ?? 0;
+      const countB = rankMap[b.id] ?? 0;
+      if (hasLive && countB !== countA) return countB - countA;
+      return weight(b, period) - weight(a, period);
+    });
+  }, [type, period, rankMap, liveLoaded, loading]);
 
   const activePeriod = PERIOD_TABS.find((item) => item.id === period);
 
@@ -103,7 +140,10 @@ export default function RankingsPage() {
           {PERIOD_TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setPeriod(tab.id)}
+              onClick={() => {
+                setPeriod(tab.id);
+                setLoading(true);
+              }}
               className={cn(
                 "rounded-full px-2.5 py-1 text-[11px] transition",
                 period === tab.id
@@ -117,6 +157,14 @@ export default function RankingsPage() {
         </div>
       </div>
 
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        {loading
+          ? "正在加载本周期榜单…"
+          : liveLoaded
+            ? "榜单按站点真实点击统计排序；暂无埋点数据时按目录热度兜底展示。"
+            : "统计暂不可用，当前按目录热度兜底展示。"}
+      </p>
+
       {list.length === 0 ? (
         <div className="mt-4">
           <EmptyHint text="该分类下暂无上榜站点" />
@@ -124,7 +172,16 @@ export default function RankingsPage() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {list.map((site, index) => (
-            <SiteCard key={site.id} site={site} rank={index + 1} />
+            <SiteCard
+              key={site.id}
+              site={site}
+              rank={index + 1}
+              hotCount={
+                liveLoaded && !loading && rankMap[site.id] != null
+                  ? rankMap[site.id]
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}

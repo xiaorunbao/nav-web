@@ -38,6 +38,7 @@ pnpm start --port 3100
 - 固定头部：Logo、导航、全局搜索、深浅色切换、登录 / 开通会员
 - 左侧分类树：9 个分类，可展开子分类并定位到区块
 - 紫渐变搜索 Banner：站内 / 百度 / Google / Bing / 知乎 / GitHub 引擎切换、热门词、收录统计
+- 多时区时钟条：北京、马尼拉、吉隆坡、新加坡、东京、伦敦、中欧、美东、美西实时走秒（纯前端 Intl 换算）
 - 热门网址 TOP 8：按浏览量排序，带排名角标
 - 9 个分类区块：子分类标签筛选、折叠 / 展开、卡片详情
 - 页脚与悬浮工具（AI 入口、回到顶部）
@@ -79,6 +80,8 @@ pnpm start --port 3100
 ### `/rankings` 排行榜
 
 - 内容类型（网址 / 文章 / 软件 / 书籍）× 时间周期（日榜 / 周榜 / 月榜 / 总榜）双 Tab 切换
+- 榜单按周期真实点击（visit）统计排序，卡片右侧展示真实点击量；暂无埋点数据或接口异常时回退目录热度兜底
+- 切换周期时以请求序号丢弃过期响应，加载中不沿用上一周期排序；统计不可用与兜底状态在文案中区分提示
 - 复用站点卡片并带 1 / 2 / 3 名红橙黄排名角标；红色渐变 Hero 与收录统计
 
 ### `/iotags` 标签云墙
@@ -99,12 +102,25 @@ pnpm start --port 3100
 ### `/go` 外链中转与点击统计
 
 - 站点卡片、详情页、抽屉的出站链接统一走 `/go?url=<编码地址>`，仅放行 http / https，非法协议返回 400
-- 进程内存内记录各目标地址点击量（重启清零，待接入数据库落库）
+- 反查站点时先归一化地址（host 小写去 `www.`、去尾部斜杠、剥离 query/hash），再按原始地址、归一化地址、域名三级匹配
+- 命中本地站点后旁路记录 `visit` 埋点并落库；埋点写入失败不阻断 302 跳转
+
+### 访问埋点（后端）
+
+- 事件明细表 `nav_site_event`：每次中转点击（`visit`）或详情页浏览（`view`）落一条记录，含终端渠道、referer、IP、UA
+- 日聚合表 `nav_site_daily`：按站点 × 日期累加 `visitCount / viewCount`，供近 30 天趋势图与周期榜单查询
+- 仓储 `src/lib/analytics.ts`：`trackEvent` 写入明细与聚合、`getSiteTrend` 近 N 天趋势（补零）、`getPeriodRankings` 周期榜单、`getSiteTotals` 累计访问
+- UA 过滤：`src/lib/bot.ts` 识别搜索引擎爬虫、采集脚本与命令行客户端（Googlebot / Baiduspider / curl / python-requests / headless 等），空 UA 与命中规则的访问不计入统计
+- 详情视图挂载后轻量上报一次 PV：`POST /api/analytics/view`（body `{ siteId }`）
+- 只读查询接口：`GET /api/analytics/trend?siteId=` 近 30 天趋势；`GET /api/analytics/rankings?period=day|week|month|total` 周期点击榜单；连库异常时返回空数据与 `ok:false`，由前端按空态 / 本地热度兜底
+- 详情页「近 30 天访问趋势」为纯 SVG 双折线图（点击 / 浏览），客户端拉取趋势数据，无数据展示空态
+- 埋点为旁路数据，异常只记服务端日志，不影响页面渲染与跳转
 
 ### 站点详情页 SEO / OG
 
 - 三段式标题（站点名官网 - 站点名 - 简介）、description、keywords 与完整 openGraph（标题 / 描述 / 绝对地址 / 站点名 / 图标 / 类型）
 - 信息网格展示网站地址、所属分类、所在地、收录时间；指标行含更新时间、浏览、评论、收藏
+- 「数据评估」区块：5118 / 爱站 / Chinaz 第三方站长工具外链位与站点价值评估说明文案
 
 ### 导航入口说明
 
@@ -179,6 +195,7 @@ npm run db:init
 web/
 ├─ public/logo.png                 # 站点 Logo
 ├─ sql/001_nav_user.sql            # 用户表 DDL
+├─ sql/002_site_event.sql          # 访问埋点事件明细 + 日聚合表 DDL
 ├─ scripts/init-db.mjs             # 建表 + 演示账号初始化
 ├─ src/
 │  ├─ app/
@@ -188,6 +205,9 @@ web/
 │  │  │  ├─ page.tsx               # 登录页
 │  │  │  └─ actions.ts             # 登录 / 退出 Server Action
 │  │  ├─ api/auth/                 # 会话查询、六个社交平台的授权与回调
+│  │  ├─ api/analytics/view/route.ts      # 详情页 PV 上报
+│  │  ├─ api/analytics/trend/route.ts      # 近 30 天趋势只读查询
+│  │  ├─ api/analytics/rankings/route.ts   # 周期点击榜单只读查询
 │  │  └─ (site)/
 │  │     ├─ page.tsx               # 首页
 │  │     ├─ secondary/page.tsx      # 次级导航
@@ -196,14 +216,17 @@ web/
 │  │     ├─ iotags/page.tsx         # 标签云墙
 │  │     ├─ tags/[tag]/page.tsx     # 标签聚合
 │  │     ├─ search/page.tsx        # 独立搜索结果页
-│  │     ├─ go/route.ts            # 外链中转 + 内存点击统计
+│  │     ├─ go/route.ts            # 外链中转 + visit 埋点落库
 │  │     ├─ about/page.tsx          # 关于与更新日志
 │  │     └─ submit/page.tsx         # 投稿收录
 │  ├─ components/                  # 头部、侧栏、Hero、卡片、抽屉、弹窗、登录页等
+│  │  ├─ site-trend-chart.tsx      # 详情页近 30 天访问趋势 SVG 图
+│  │  └─ timezone-bar.tsx          # 首页多时区实时时钟条
 │  ├─ data/nav.ts                  # 104 个站点、9 个区块、6 个面板
 │  └─ lib/
 │     ├─ auth.ts                   # 会话签名、Cookie 与客户端 IP
 │     ├─ auth-shared.ts            # 登录用户类型
+│     ├─ bot.ts                    # 爬虫 / 采集器 UA 识别与过滤
 │     ├─ db.ts                     # MySQL 连接池
 │     ├─ oauth.ts                  # 六个平台的授权地址与用户资料换取
 │     ├─ oauth-shared.ts           # 社交平台 ID、名称与环境变量名
@@ -212,6 +235,7 @@ web/
 │     ├─ store.ts                  # Zustand 状态与持久化
 │     ├─ search.ts                 # 搜索评分
 │     ├─ site.ts                  # 站点元信息派生、中转链接、标签聚合与排序
+│     ├─ analytics.ts              # 访问埋点写入、趋势 / 周期榜单 / 累计访问查询
 │     └─ utils.ts                  # cn 等工具
 └─ next.config.ts
 ```

@@ -84,6 +84,15 @@ export function Footer() {
               <Link href="/about#feedback" className="hover:text-brand">
                 意见反馈
               </Link>
+              <Link href="/about#disclaimer" className="hover:text-brand">
+                免责声明
+              </Link>
+              <Link href="/about#contact" className="hover:text-brand">
+                广告合作
+              </Link>
+              <Link href="/submit" className="hover:text-brand">
+                友链申请
+              </Link>
             </div>
           </div>
 
@@ -131,6 +140,8 @@ export function Footer() {
             <span>shadcn/ui</span>
             <span className="size-1 rounded-full bg-border" />
             <span>Zustand</span>
+            <span className="size-1 rounded-full bg-border" />
+            <span>由 OneNav 强力驱动</span>
           </p>
         </div>
       </div>
